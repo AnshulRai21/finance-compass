@@ -2,9 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line } from 'recharts';
 import { DollarSign, TrendingDown, TrendingUp } from 'lucide-react';
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+import { formatCurrency } from '@/utils/format';
 
 const CHART_COLORS = [
   'hsl(168, 70%, 38%)', 'hsl(210, 70%, 50%)', 'hsl(38, 92%, 50%)',
@@ -142,7 +140,7 @@ const Analytics = () => {
               <BarChart data={incExpData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
                 <XAxis dataKey="name" />
-                <YAxis tickFormatter={(v: number) => `$${v}`} />
+                <YAxis tickFormatter={(v: number) => `₹${v}`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   <Cell fill="hsl(152, 60%, 42%)" />
@@ -159,7 +157,7 @@ const Analytics = () => {
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
                 <XAxis dataKey="month" />
-                <YAxis tickFormatter={(v: number) => `$${v}`} />
+                <YAxis tickFormatter={(v: number) => `₹${v}`} />
                 <Tooltip formatter={(v: number) => formatCurrency(v)} />
                 <Legend />
                 <Line type="monotone" dataKey="income" stroke="hsl(152, 60%, 42%)" strokeWidth={2} dot={{ r: 4 }} name="Income" />

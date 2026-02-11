@@ -4,9 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTransactions } from '@/hooks/useTransactions';
 import { ArrowUpRight, ArrowDownRight, DollarSign, Plus, TrendingUp, BarChart3, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+import { formatCurrency } from '@/utils/format';
 
 const Dashboard = () => {
   const { user } = useAuth();

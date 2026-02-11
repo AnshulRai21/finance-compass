@@ -66,7 +66,7 @@ const AddExpense = () => {
             <Input id="title" placeholder="e.g. Grocery shopping" value={title} onChange={e => setTitle(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="amount">Amount ($)</Label>
+            <Label htmlFor="amount">Amount (₹)</Label>
             <Input id="amount" type="number" step="0.01" min="0" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
           <div className="space-y-2">
