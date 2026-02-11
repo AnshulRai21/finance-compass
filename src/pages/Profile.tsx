@@ -8,9 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { User, Lock, BarChart3, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+import { formatCurrency } from '@/utils/format';
 
 const Profile = () => {
   const { user, updateProfile, changePassword, deleteAccount } = useAuth();
