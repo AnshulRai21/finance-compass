@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User } from '@/types/finance';
+import { apiClient } from '@/lib/api-client';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  register: (name: string, email: string, password: string) => { success: boolean; error?: string };
-  logout: () => void;
-  updateProfile: (updates: Partial<User>) => void;
-  changePassword: (current: string, newPass: string) => { success: boolean; error?: string };
-  deleteAccount: () => void;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (current: string, newPass: string, confirmPass: string) => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: (password: string) => Promise<{ success: boolean; error?: string }>;
+  logoutAll: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -20,105 +23,144 @@ export const useAuth = () => {
   return ctx;
 };
 
-const getUsers = (): User[] => {
-  try {
-    return JSON.parse(localStorage.getItem('fm_users') || '[]');
-  } catch { return []; }
-};
-
-const saveUsers = (users: User[]) => {
-  localStorage.setItem('fm_users', JSON.stringify(users));
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Initialize auth on mount - check if token exists and fetch user
   useEffect(() => {
-    try {
-      const sessionId = localStorage.getItem('fm_session');
-      if (sessionId) {
-        const users = getUsers();
-        const found = users.find(u => u.id === sessionId);
-        if (found) setUser(found);
-        else localStorage.removeItem('fm_session');
+    const initAuth = async () => {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        try {
+          const response = await apiClient.getCurrentUser();
+          if (response.user) {
+            setUser(response.user as User);
+          } else {
+            // Token is invalid, clear it
+            apiClient.clearAuth();
+          }
+        } catch (error) {
+          console.error('Failed to fetch current user:', error);
+          apiClient.clearAuth();
+        }
       }
-    } catch {
-      localStorage.removeItem('fm_session');
-    }
-  }, []);
-
-  const login = useCallback((email: string, password: string) => {
-    const users = getUsers();
-    const found = users.find(u => u.email === email.trim().toLowerCase());
-    if (!found) return { success: false, error: 'Account not found' };
-    if (found.password !== password) return { success: false, error: 'Incorrect password' };
-    localStorage.setItem('fm_session', found.id);
-    setUser(found);
-    return { success: true };
-  }, []);
-
-  const register = useCallback((name: string, email: string, password: string) => {
-    const users = getUsers();
-    const trimmedEmail = email.trim().toLowerCase();
-    if (users.find(u => u.email === trimmedEmail)) {
-      return { success: false, error: 'An account with this email already exists' };
-    }
-    const newUser: User = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      email: trimmedEmail,
-      password,
-      currency: 'USD',
-      monthlyBudget: 0,
-      createdAt: new Date().toISOString(),
-      role: 'user',
+      setIsLoading(false);
     };
-    const updated = [...users, newUser];
-    saveUsers(updated);
-    localStorage.setItem('fm_session', newUser.id);
-    setUser(newUser);
-    return { success: true };
+
+    initAuth();
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('fm_session');
-    setUser(null);
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      const response = await apiClient.login(email, password);
+      if (response.success && response.user) {
+        setUser(response.user);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Login failed' };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Login failed' };
+    }
   }, []);
 
-  const updateProfile = useCallback((updates: Partial<User>) => {
-    if (!user) return;
-    const users = getUsers();
-    const idx = users.findIndex(u => u.id === user.id);
-    if (idx === -1) return;
-    const updatedUser = { ...users[idx], ...updates, id: user.id, password: users[idx].password };
-    users[idx] = updatedUser;
-    saveUsers(users);
-    setUser(updatedUser);
-  }, [user]);
+  const register = useCallback(async (name: string, email: string, password: string, confirmPassword: string) => {
+    try {
+      const response = await apiClient.register(name, email, password, confirmPassword);
+      if (response.success && response.user) {
+        setUser(response.user);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Registration failed' };
+    } catch (error) {
+      console.error('Registration error:', error);
+      return { success: false, error: 'Registration failed' };
+    }
+  }, []);
 
-  const changePassword = useCallback((current: string, newPass: string) => {
-    if (!user) return { success: false, error: 'Not authenticated' };
-    const users = getUsers();
-    const idx = users.findIndex(u => u.id === user.id);
-    if (idx === -1) return { success: false, error: 'User not found' };
-    if (users[idx].password !== current) return { success: false, error: 'Current password is incorrect' };
-    users[idx].password = newPass;
-    saveUsers(users);
-    return { success: true };
-  }, [user]);
+  const logout = useCallback(async () => {
+    try {
+      await apiClient.logout();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+      setUser(null);
+    }
+  }, []);
 
-  const deleteAccount = useCallback(() => {
-    if (!user) return;
-    const users = getUsers().filter(u => u.id !== user.id);
-    saveUsers(users);
-    const txns = JSON.parse(localStorage.getItem('fm_transactions') || '[]');
-    localStorage.setItem('fm_transactions', JSON.stringify(txns.filter((t: any) => t.userId !== user.id)));
-    localStorage.removeItem('fm_session');
-    setUser(null);
-  }, [user]);
+  const logoutAll = useCallback(async () => {
+    try {
+      await apiClient.logoutAll();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout all error:', error);
+      setUser(null);
+    }
+  }, []);
+
+  const updateProfile = useCallback(async (updates: Partial<User>) => {
+    try {
+      const response = await apiClient.updateProfile({
+        name: updates.name,
+        currency: updates.currency,
+        monthlyBudget: updates.monthlyBudget,
+      });
+      if (response.success && response.user) {
+        setUser(response.user);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Update failed' };
+    } catch (error) {
+      console.error('Profile update error:', error);
+      return { success: false, error: 'Update failed' };
+    }
+  }, []);
+
+  const changePassword = useCallback(async (current: string, newPass: string, confirmPass: string) => {
+    try {
+      const response = await apiClient.changePassword(current, newPass, confirmPass);
+      if (response.success) {
+        // Password changed, user needs to login again
+        setUser(null);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Password change failed' };
+    } catch (error) {
+      console.error('Password change error:', error);
+      return { success: false, error: 'Password change failed' };
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async (password: string) => {
+    try {
+      const response = await apiClient.deleteAccount(password);
+      if (response.success) {
+        setUser(null);
+        return { success: true };
+      }
+      return { success: false, error: response.error || 'Account deletion failed' };
+    } catch (error) {
+      console.error('Account deletion error:', error);
+      return { success: false, error: 'Account deletion failed' };
+    }
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, updateProfile, changePassword, deleteAccount }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        register,
+        logout,
+        logoutAll,
+        updateProfile,
+        changePassword,
+        deleteAccount,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
